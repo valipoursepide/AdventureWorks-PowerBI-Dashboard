@@ -1,0 +1,149 @@
+--Total ResellerSaleamount = CALCULATE(SUM(FactResellerSales[SalesAmount]))
+--Total ResellerCost = CALCULATE(sum(FactResellerSales[TotalProductCost]))
+--Total InternetSaleAmount = sum(FactInternetSales[SalesAmount])
+--Total InternetCost = sum(FactInternetSales[TotalProductCost])
+--Total Revenue = [Total ResellerSaleamount] + [Total InternetSaleAmount]-[Total InternetCost] -[Total ResellerCost]
+--Total SaleAmount = [Total InternetSaleAmount]+[Total ResellerSaleamount]
+--Total Cost = [Total InternetCost]+[Total ResellerCost]
+--Profit = [Total SaleAmount]-[Total Cost]
+
+
+--TotalSaleAmountCurrentYear = 
+var a=COALESCE(CALCULATE([Total SaleAmount],filter(FactInternetSales,
+YEAR(FactInternetSales[OrderDate])=YEAR(MAX(FactInternetSales[OrderDate])))),0)
+var b=COALESCE(CALCULATE([Total SaleAmount],filter(FactResellerSales,
+YEAR(FactResellerSales[SalesAmount])=YEAR(MAX(FactResellerSales[OrderDate])))),0)
+var c=a+b
+return c
+
+
+--TotalSaleAmountPrev = 
+var a=COALESCE(calculate(sum(FactInternetSales[SalesAmount]),SAMEPERIODLASTYEAR(FactInternetSales[OrderDate].[Date])),0)
+var b=COALESCE(calculate(sum(FactResellerSales[SalesAmount]),SAMEPERIODLASTYEAR(FactResellerSales[OrderDate].[Date])),0)
+var c=a+b
+return c
+
+--SaleGrowth = DIVIDE(([TotalSaleAmountCurrentYear]-[TotalSaleAmountPrev]),[TotalSaleAmountCurrentYear])
+
+--RepeatCustomers = 
+COUNTROWS(
+    FILTER(
+        VALUES(DimCustomer[CustomerKey]),
+        CALCULATE(DISTINCTCOUNT(FactInternetSales[SalesOrderNumber])) > 1
+    )
+)
+
+--CustomerSaleAmountRank = RANKX(all(DimCustomer[FullName]),[Total InternetSaleAmount],,DESC)
+--ShowCustomerSaleamountlessthansaleQuota = if([Total ResellerSaleamount]<[Total SaleAmountQuota],1,0)
+
+--Count Of Customer = COUNTROWS(ALL(FactInternetSales[CustomerKey]))
+--CountCustomerCurrentYear = COALESCE(CALCULATE(COUNT(FactInternetSales[CustomerKey]),filter(FactInternetSales,
+YEAR(FactInternetSales[OrderDate])=YEAR(MAX(FactInternetSales[OrderDate])))),0)
+--CountCustomerLastYear = COALESCE(calculate(COUNT(FactInternetSales[CustomerKey]),SAMEPERIODLASTYEAR(FactInternetSales[OrderDate].[Date])),0)
+--CountOfCustomerGrowth = DIVIDE([CountCustomerCurrentYear]-[CountCustomerLastYear],[CountCustomerCurrentYear])
+
+
+--CummulativeCustomerSaleAmount = 
+var Cummulative=[CustomerSaleAmountRank]
+return
+CALCULATE([Total InternetSaleAmount],filter(all(DimCustomer[CustomerKey]),[CustomerSaleAmountRank]<Cummulative))
+
+
+--CumulativeCost = 
+Var Cummulative=[TotalCostProductSubCatRank]
+return 
+calculate([Total InternetCost]+[Total ResellerCost],FILTER(all(DimProductSubcategory[EnglishProductSubcategoryName]),[TotalCostProductSubCatRank]<Cummulative))
+
+--CumulativeCostPercent = CALCULATE(DIVIDE([CumulativeCost],CALCULATE([Total Cost],all(DimProductSubcategory[EnglishProductSubcategoryName]))))
+
+--EmployeeOrderQuantityRankMax = RANKX(all(DimEmployee[FullName]),[TotalResellerSaleQuantity],,DESC)
+
+--EmployeeSaleAmountRankMax = RANKX(all(DimEmployee[FullName]),[Total SaleAmount],,DESC)
+
+--HighestCustomerInternetSalAmount = 
+var a=TOPN(1,
+SUMMARIZE(DimEmployee,DimEmployee[FullName],DimEmployee[EmployeeKey],
+"SumInternetSale",CALCULATE([Total InternetSaleAmount])),[Total InternetSaleAmount],DESC)
+return
+SELECTCOLUMNS(a,DimEmployee[FullName])
+
+--MinCostProductRank = RANKX(ALL(DimProduct[EnglishProductName]),[Total Cost] ,,ASC)
+
+--SelectedDynamicDailyReport = SELECTEDVALUE(DynamicTableDailyReport[Column1])
+
+--ShowCustomerOrderQuantity = if('Enter NumberOfEmployee'[Enter NumberOfEmployee Value]>=[EmployeeOrderQuantityRankMax],[TotalResellerSaleQuantity])
+--ShowCustomerSaleamountlessthansaleQuota = if([Total ResellerSaleamount]<[Total SaleAmountQuota],1,0)
+--ShowInternetRevenue = if('Enter Number:'[Enter Number: Value]>=[TotalInternetRevenueRank],[TotalInternetSaleRevenue])
+--ShowMaxCustomerSaleAmount = if('Enter NumberOfCustomer'[Enter NumberOfCustomer Value]>[CustomerSaleAmountRank],[Total InternetSaleAmount])
+--ShowMaxEmployeeSaleAmount = if('Enter NumberOfEmployee'[Enter NumberOfEmployee Value]>=[EmployeeSaleAmountRankMax],[Total SaleAmount])
+--ShowMinCostProduct = if('Enter Number:'[Enter Number: Value]>=[MinCostProductRank] ,[Total Cost],BLANK())
+--ShowRankProductCost = if('Enter Number:'[Enter Number: Value]>=[TotalCostProductRank],[Total InternetCost])
+--ShowRankQuantityProduct = if('Enter Number:'[Enter Number: Value]>=[TotalSaleQuantityProductrank],[TotalQuantity])
+--ShowRankRevenueProduct = if('Enter Number:'[Enter Number: Value]>=[TotalRevenueProductRank],[Total Revenue])
+--ShowRankSaleAmountProduct = if('Enter Number:'[Enter Number: Value]>[TotalSaleAmounProductRank],[Total SaleAmount])
+--ShowRankTaxAmountProduct = if('Enter Number:'[Enter Number: Value]>=[TotalTaxAmountProductRank],[TotalTax])
+--ShowResellerRevenue = if('Enter Number:'[Enter Number: Value]>=[TotalresellerRevenueRank],[Total ResellerRevenue])
+
+--TopResellerSaleAmountProduct = 
+var a=TOPN(1,
+SUMMARIZE(DimProduct,DimProduct[EnglishProductName],"SumSaleAmount",
+CALCULATE(sum(FactResellerSales[SalesAmount]))),[Total ResellerSaleamount],DESC)
+return SELECTCOLUMNS(a,DimProduct[EnglishProductName])
+
+
+--TopSaleAmountCountry = 
+var a=TOPN(1,
+SUMMARIZE(DimGeography,DimGeography[EnglishCountryRegionName],"SumAmount",
+CALCULATE(sum(FactInternetSales[SalesAmount]))),[Total InternetSaleAmount],DESC)
+return
+SELECTCOLUMNS(a,DimGeography[EnglishCountryRegionName])
+
+
+--TopSaleAmountEmployee = 
+var a = TOPN(1,
+SUMMARIZE(DimEmployee,DimEmployee[EmployeeKey],DimEmployee[FullName],"SumSaleAmount",
+CALCULATE(sum(FactResellerSales[SalesAmount]))),[Total ResellerSaleamount],DESC)
+RETURN
+SELECTCOLUMNS(a,DimEmployee[FullName])
+
+
+
+--TopSaleAmountProduct = 
+var a=TOPN(1,
+SUMMARIZE(DimProduct,DimProduct[EnglishProductName],"SumSaleAmount",
+CALCULATE(sum(FactInternetSales[SalesAmount]))),[Total InternetSaleAmount],DESC)
+return SELECTCOLUMNS(a,DimProduct[EnglishProductName])
+
+
+--TopTotalCostProductMax = 
+var a=TOPN(1,
+SUMMARIZE(DimProduct,DimProduct[EnglishProductName],"SumCost",
+CALCULATE([Total Cost])),[Total Cost],DESC)
+RETURN
+SELECTCOLUMNS(a,DimProduct[EnglishProductName])
+
+--TopTotalSaleAmountSubCatMax = 
+var a=TOPN(1,
+SUMMARIZE(DimProduct,DimProduct[EnglishProductName],"SumSaleAmount",
+CALCULATE([Total SaleAmount])),[Total SaleAmount],DESC)
+return
+SELECTCOLUMNS(a,DimProduct[EnglishProductName])
+
+--TotalCostProductRank = RANKX(all(DimProduct[EnglishProductName]),[Total Cost])
+--TotalCostProductSubCatRank = RANKX(all(DimProductSubcategory[EnglishProductSubcategoryName]),[Total Cost])
+--TotalInternetRevenueRank = RANKX(all(DimProduct[EnglishProductName]),[TotalInternetSaleRevenue])
+--TotalInternetsaleQuantity = CALCULATE(SUM(FactInternetSales[OrderQuantity]))
+--TotalInternetTax = CALCULATE(sum(FactInternetSales[TaxAmt]))
+--TotalInventoryUnitBalance = CALCULATE(SUM(FactProductInventory[UnitsBalance]))
+--TotalInventoryUnitsIn = CALCULATE(SUM(FactProductInventory[UnitsIn]))
+--TotalInventoryUnitsOut = CALCULATE(SUM(FactProductInventory[UnitsOut]))
+--TotalresellerRevenueRank = RANKX(all(DimProduct[EnglishProductName]),[Total ResellerRevenue])
+--TotalResellerSaleQuantity = calculate(sum(FactResellerSales[OrderQuantity]))
+--TotalRevenueProductRank = RANKX(all(DimProduct[EnglishProductName]),[Total Revenue])
+--TotalSaleAmounProductRank = RANKX(all(DimProduct[EnglishProductName]),[Total SaleAmount])
+--TotalSaleQuantityProductrank = RANKX(all(DimProduct[EnglishProductName]),[TotalQuantity])
+--TotalTaxAmountProductRank = RANKX(all(DimProduct[EnglishProductName]),[TotalTax])
+
+
+
+
